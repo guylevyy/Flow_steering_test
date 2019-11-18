@@ -14,8 +14,8 @@ struct config_t config = {
 	.is_daemon = 1,
 	.wait = 0,
 	.tcp = 17500,
-	.qp_type = IBV_QPT_RC,
-	.msg_sz = 8,
+	.qp_type = IBV_QPT_RAW_PACKET,
+	.msg_sz = 64,
 	.ring_depth = DEF_RING_DEPTH,
 	.batch_size = DEF_BATCH_SIZE,
 };
@@ -62,6 +62,13 @@ struct VL_usage_descriptor_t usage_descriptor[] = {
 #define TCP_CMD_CASE				5
 		TCP_CMD_CASE
 	},
+
+	{
+		' ', "mac", "MAC_ADDR",
+		"Local mac to use for Raw packet QP transport",
+#define MAC_CMD_CASE				6
+		MAC_CMD_CASE
+	},
 };
 
 const char *bool_to_str(int var)
@@ -82,6 +89,7 @@ static void print_config(void)
 	VL_MISC_TRACE(("TCP port                       : %d", config.tcp));
 	VL_MISC_TRACE(("HCA                            : %s", config.ib_dev));
 	VL_MISC_TRACE(("Number of iterations           : %d", config.num_of_iter));
+	VL_MISC_TRACE(("MAC                            : %s", config.mac));
 	VL_MISC_TRACE(("Wait before exit               : %s", bool_to_str(config.wait)));
 
 	VL_MISC_TRACE(("--------------------------------------------------"));
@@ -119,6 +127,10 @@ static int process_arg(
 
 	case TCP_CMD_CASE:
 		config.tcp = strtoul(equ_ptr, NULL, 0);
+		break;
+
+	case MAC_CMD_CASE:
+		strcpy(config.mac, equ_ptr);
 		break;
 
 	default:
@@ -235,6 +247,18 @@ static int force_configurations_dependencies()
 	if (config.ring_depth < config.batch_size)
 		config.ring_depth = config.batch_size;
 
+	if (config.qp_type == IBV_QPT_RAW_PACKET &&
+	    config.msg_sz < 64) {
+		VL_MISC_ERR(("Ethernet packet requires minimum 64B of packet size\n"));
+		return FAIL;
+	}
+
+	if (config.qp_type == IBV_QPT_RAW_PACKET &&
+	    strlen(config.mac) != STR_MAC_LEN - 1) {
+		VL_MISC_ERR(("Invalid local MAC address %d\n", strlen(config.mac)));
+		return FAIL;
+	}
+
 	return 0;
 }
 
@@ -316,6 +340,9 @@ int main(
 	rc = init_qps(&resource);
 	CHECK_RC(rc, "init_qps");
 
+	rc = init_eth_resources(&resource);
+	CHECK_RC(rc, "init_eth_resources");
+
 	rc = test_traffic(&resource);
 	CHECK_RC(rc, "test_traffic");
 
@@ -327,6 +354,9 @@ cleanup:
 		VL_sock_close(&resource.sock);
 		VL_SOCK_TRACE(("Close the Socket"));
 	}
+
+	if (destroy_eth_resources(&resource) != SUCCESS)
+		rc = FAIL;
 
 	if (destroy_resources(&resource) != SUCCESS)
 		rc = FAIL;

@@ -6,6 +6,7 @@
 #include <vl_verbs.h>
 #include "resources.h"
 #include "main.h"
+#include <ctype.h>
 
 extern struct config_t config;
 
@@ -340,7 +341,7 @@ int destroy_resources(struct resources_t *resource)
 	if (resource->sge_arr)
 		VL_FREE(resource->sge_arr);
 
-	VL_MEM_TRACE(("Finish to destroy all resources"));
+	VL_MEM_TRACE(("Finish to destroy general resources"));
 	return result1;
 }
 
@@ -350,15 +351,11 @@ static int qp_to_init(const struct resources_t *resource)
 		.qp_state        = IBV_QPS_INIT,
 		.pkey_index      = 0,
 		.port_num        = IB_PORT,
-		.qp_access_flags = 0
 	};
+	int attr_mask = IBV_QP_STATE | IBV_QP_PORT;
 
-	if (ibv_modify_qp(resource->qp, &attr,
-			  IBV_QP_STATE              |
-			  IBV_QP_PKEY_INDEX         |
-			  IBV_QP_PORT               |
-			  IBV_QP_ACCESS_FLAGS)) {
-		VL_MISC_ERR(("Fail to modify RC QP to IBV_QP_INIT"));
+	if (ibv_modify_qp(resource->qp, &attr, attr_mask)) {
+		VL_MISC_ERR(("Fail to modify QP to IBV_QPS_INIT"));
 		return FAIL;
 	}
 
@@ -367,62 +364,18 @@ static int qp_to_init(const struct resources_t *resource)
 
 static int qp_to_rtr(const struct resources_t *resource)
 {
-	struct sync_qp_info_t remote_qp = {0};
-	struct sync_qp_info_t local_qp = {0};
 	struct ibv_qp_attr attr = {
 		.qp_state		= IBV_QPS_RTR,
-		.path_mtu		= IBV_MTU_1024,
-		.dest_qp_num		= remote_qp.qp_num,
-		.rq_psn			= 0,
-		.max_dest_rd_atomic	= 0,
-		.min_rnr_timer		= 0x10,
 		.ah_attr		= {
 			.is_global	= 0,
-			.dlid		= remote_qp.lid,
 			.sl		= 0,
 			.src_path_bits	= 0,
-			.port_num	= IB_PORT,
 			}
 	};
-	int rc;
+	int attr_mask = IBV_QP_STATE;
 
-	local_qp.qp_num = resource->qp->qp_num;
-	local_qp.lid = resource->hca_p->port_attr.lid;
-
-	if (!config.is_daemon) {
-		rc = send_info(resource, &local_qp, sizeof(local_qp));
-		if (rc)
-			return FAIL;
-
-		rc = recv_info(resource, &remote_qp, sizeof(remote_qp));
-		if (rc)
-			return FAIL;
-	} else {
-		rc = recv_info(resource, &remote_qp, sizeof(remote_qp));
-		if (rc)
-			return FAIL;
-
-		rc = send_info(resource, &local_qp, sizeof(local_qp));
-		if (rc)
-			return FAIL;
-	}
-
-	VL_MISC_TRACE1(("Going to RC QP to lid 0x%x qp_num 0x%x",
-			remote_qp.lid,
-			remote_qp.qp_num));
-
-	attr.dest_qp_num = remote_qp.qp_num;
-	attr.ah_attr.dlid = remote_qp.lid;
-
-	if (ibv_modify_qp(resource->qp, &attr,
-		  IBV_QP_STATE              |
-		  IBV_QP_AV                 |
-		  IBV_QP_PATH_MTU           |
-		  IBV_QP_DEST_QPN           |
-		  IBV_QP_RQ_PSN             |
-		  IBV_QP_MAX_DEST_RD_ATOMIC |
-		  IBV_QP_MIN_RNR_TIMER)) {
-		VL_MISC_ERR(("Fail to modify RC QP, to IBV_QPS_RTR"));
+	if (ibv_modify_qp(resource->qp, &attr, attr_mask)) {
+		VL_MISC_ERR(("Fail to modify QP, to IBV_QPS_RTR"));
 		return FAIL;
 	}
 
@@ -432,26 +385,14 @@ static int qp_to_rtr(const struct resources_t *resource)
 static int qp_to_rts(const struct resources_t *resource)
 {
 	struct ibv_qp_attr attr = {
-	.qp_state		= IBV_QPS_RTS,
-	.timeout		= 0x10,
-	.retry_cnt		= 7,
-	.rnr_retry		= 7,
-	.sq_psn			= 0,
-	.max_rd_atomic		= 0
-	};
+		.qp_state = IBV_QPS_RTS,
+		};
+	int attr_mask = IBV_QP_STATE;
 
-	if (ibv_modify_qp(resource->qp, &attr,
-		  IBV_QP_STATE              |
-		  IBV_QP_TIMEOUT            |
-		  IBV_QP_RETRY_CNT          |
-		  IBV_QP_RNR_RETRY          |
-		  IBV_QP_SQ_PSN             |
-		  IBV_QP_MAX_QP_RD_ATOMIC)) {
-		VL_MISC_ERR(("Fail to modify RC QP to IBV_QPS_RTS."));
+	if (ibv_modify_qp(resource->qp, &attr, attr_mask)) {
+		VL_MISC_ERR(("Fail to modify QP to IBV_QPS_RTS."));
 		return FAIL;
 	}
-
-	VL_MISC_TRACE1(("RC QP qp_num 0x%x now at RTS.", resource->qp->qp_num));
 
 	return SUCCESS;
 }
@@ -476,3 +417,173 @@ int init_qps(struct resources_t *resource)
 	return  SUCCESS;
 }
 
+static void init_eth_header(struct resources_t *resource, uint8_t *smac, uint8_t *dmac)
+{
+	struct ETH_header *eth_header = resource->mr->addr;
+	size_t frame_size = config.msg_sz;
+
+	memcpy(eth_header->src_mac, smac, MAC_LEN);
+	memcpy(eth_header->dst_mac, dmac, MAC_LEN);
+	eth_header->eth_type = htons(frame_size - ETH_HDR_SIZE); /* Payload and CRC */
+}
+
+//convert mac string xx:xx:xx:xx:xx:xx to byte array
+#define MAC_SEP ':'
+static char *mac_string_to_byte(const char *mac_string, uint8_t *mac_bytes)
+{
+	int counter;
+	for (counter = 0; counter < 6; ++counter) {
+		unsigned int number = 0;
+		char ch;
+
+		//Convert letter into lower case.
+		ch = tolower(*mac_string++);
+
+		if ((ch < '0' || ch > '9') && (ch < 'a' || ch > 'f')) {
+			return NULL;
+		}
+
+		number = isdigit (ch) ? (ch - '0') : (ch - 'a' + 10);
+		ch = tolower(*mac_string);
+
+		if ((counter < 5 && ch != MAC_SEP) || (counter == 5 && ch != '\0'
+				&& !isspace (ch))) {
+			++mac_string;
+
+			if ((ch < '0' || ch > '9') && (ch < 'a' || ch > 'f')) {
+				return NULL;
+			}
+
+			number <<= 4;
+			number += isdigit (ch) ? (ch - '0') : (ch - 'a' + 10);
+			ch = *mac_string;
+
+			if (counter < 5 && ch != MAC_SEP) {
+				return NULL;
+			}
+		}
+		mac_bytes[counter] = (unsigned char) number;
+		++mac_string;
+	}
+	return (char *) mac_bytes;
+}
+
+static int init_mcast_mac_flow(struct resources_t *resource, uint8_t *mmac)
+{
+	struct raw_eth_flow_attr flow_attr = {
+		.attr = {
+			.comp_mask      = 0,
+			.type           = IBV_FLOW_ATTR_NORMAL,
+			.size           = sizeof(flow_attr),
+			.priority       = 0,
+			.num_of_specs   = 1,
+			.port           = IB_PORT,
+			.flags          = 0,
+		},
+		.spec_eth = {
+			.type   = IBV_FLOW_SPEC_ETH,
+			.size   = sizeof(struct ibv_flow_spec_eth),
+			.val = {
+				.dst_mac = { mmac[0], mmac[1], mmac[2], mmac[3], mmac[4], mmac[5]},
+				.src_mac = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+				.ether_type = 0,
+				.vlan_tag = 0,
+			},
+			.mask = {
+				.dst_mac = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+				.src_mac = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+				.ether_type = 0,
+				.vlan_tag = 0,
+			}
+		}
+	};
+
+	VL_MEM_TRACE1(("Going to create flow rule"));
+
+	resource->flow = ibv_create_flow(resource->qp , &flow_attr.attr);
+	if (!resource->flow) {
+		VL_MEM_ERR(("Fail to create flow rule (%s)", strerror(errno)));
+		return FAIL;
+	}
+
+	VL_MEM_TRACE1(("Finish to create flow rule"));
+
+	return SUCCESS;
+}
+
+int init_eth_resources(struct resources_t *resource)
+{
+	struct sync_eth_info_t remote_eth_info = {{0}};
+	struct sync_eth_info_t local_eth_info = {{0}};
+	int rc;
+
+	mac_string_to_byte(config.mac, local_eth_info.mac);
+
+	if (!config.is_daemon) {
+		rc = send_info(resource, &local_eth_info, sizeof(local_eth_info));
+		if (rc)
+			return FAIL;
+
+		rc = recv_info(resource, &remote_eth_info, sizeof(remote_eth_info));
+		if (rc)
+			return FAIL;
+	} else {
+		rc = recv_info(resource, &remote_eth_info, sizeof(remote_eth_info));
+		if (rc)
+			return FAIL;
+
+		rc = send_info(resource, &local_eth_info, sizeof(local_eth_info));
+		if (rc)
+			return FAIL;
+	}
+
+	if (config.is_daemon) {
+		uint8_t *mac = local_eth_info.mac;
+
+		VL_MEM_TRACE1(("Create flow with SMAC %x:%x:%x:%x:%x:%x\n",
+				mac[0], mac[1], mac[2], mac[3],mac[4], mac[5]));
+		rc = init_mcast_mac_flow(resource, local_eth_info.mac);
+		if (rc)
+			return FAIL;
+	} else {
+		uint8_t *mac = remote_eth_info.mac;
+
+		VL_MEM_TRACE1(("Create header's DMAC %x:%x:%x:%x:%x:%x\n",
+				mac[0], mac[1], mac[2], mac[3],mac[4], mac[5]));
+		init_eth_header(resource, local_eth_info.mac, remote_eth_info.mac);
+	}
+
+	VL_MEM_TRACE1(("Finish to init ETH resources"));
+
+	return SUCCESS;
+}
+
+static int destroy_flow(struct resources_t *resource)
+{
+	int rc;
+
+	if (!resource->flow)
+		return SUCCESS;
+
+	VL_MEM_TRACE1(("Going to ibv_destroy_flow"));
+	rc = ibv_destroy_flow(resource->flow);
+	if (rc) {
+		VL_MEM_ERR(("Fail in ibv_destroy_flow (%s)", strerror(rc)));
+		return FAIL;
+
+	}
+
+	VL_MEM_TRACE1(("Finish destroy flow"));
+
+	return SUCCESS;
+}
+
+int destroy_eth_resources(struct resources_t *resource)
+{
+	if (destroy_flow(resource))
+		return FAIL;
+
+	VL_MEM_TRACE(("Finish to destroy Eth resources"));
+
+	return SUCCESS;
+}

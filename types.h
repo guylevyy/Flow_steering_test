@@ -8,6 +8,9 @@
 #define DEF_BATCH_SIZE 1
 #define DEF_RING_DEPTH 64
 #define WR_ID 0xFE
+#define MAC_LEN 6
+#define STR_MAC_LEN 18
+#define ETH_HDR_SIZE 14
 
 #define CHECK_VALUE(verb, act_val, exp_val, cmd)			\
 	if ((act_val) != (exp_val)) {					\
@@ -28,9 +31,21 @@ enum {
 	FAIL = -1,
 };
 
+struct raw_eth_flow_attr {
+        struct ibv_flow_attr attr;
+        struct ibv_flow_spec_eth spec_eth;
+} __attribute__((packed));
+
+struct ETH_header {
+	uint8_t dst_mac[6];
+	uint8_t src_mac[6];
+	uint16_t eth_type;
+}__attribute__((packed));
+
 struct config_t {
 	char		*ib_dev;
 	char		ip[VL_IP_STR_LENGTH+1];
+	char 		mac[STR_MAC_LEN];
 	int		tcp;
 	int		is_daemon;
 	int		wait;
@@ -58,9 +73,8 @@ struct sync_conf_info_t {
 	enum ibv_qp_type qp_type;
 } __attribute__ ((packed));
 
-struct sync_qp_info_t {
-	uint32_t	qp_num;
-	uint32_t	lid;
+struct sync_eth_info_t {
+	uint8_t		mac[8];
 } __attribute__ ((packed));
 
 struct resources_t {
@@ -70,6 +84,7 @@ struct resources_t {
 	struct ibv_cq		*cq;
 	struct ibv_qp		*qp;
 	struct mr_data_t	*mr;
+	struct ibv_flow		*flow;
 	struct ibv_recv_wr	*recv_wr_arr;
 	struct ibv_sge		*sge_arr;
 	struct ibv_send_wr	*send_wr_arr;
