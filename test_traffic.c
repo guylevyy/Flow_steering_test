@@ -74,19 +74,19 @@ int prepare_receiver(struct resources_t *resource)
 	return SUCCESS;
 }
 
-static int do_sender(struct resources_t *resource)
+static int do_sender(struct resources_t *resource, uint32_t iters)
 {
 	uint32_t tot_ccnt = 0;
 	uint32_t tot_scnt = 0;
 	int result = SUCCESS;
 
-	while (tot_ccnt < config.num_of_iter) {
+	while (tot_ccnt < iters) {
 		uint16_t outstanding = tot_scnt - tot_ccnt;
 		int rc = 0;
 
-		if ((tot_scnt < config.num_of_iter) && (outstanding < config.ring_depth)) {
+		if ((tot_scnt < iters) && (outstanding < config.ring_depth)) {
 			struct ibv_send_wr *bad_wr = NULL;
-			uint32_t left = config.num_of_iter - tot_scnt;
+			uint32_t left = iters - tot_scnt;
 			uint16_t batch;
 
 			batch = (config.ring_depth - outstanding) >= config.batch_size ?
@@ -130,13 +130,13 @@ out:
 	return result;
 }
 
-static int do_receiver(struct resources_t *resource)
+static int do_receiver(struct resources_t *resource, uint32_t iters)
 {
 	uint32_t tot_ccnt = 0;
 	uint32_t tot_rcnt = config.ring_depth; //Due to pre-preparation of the RX
 	int result = SUCCESS;
 
-	while (tot_ccnt < config.num_of_iter) {
+	while (tot_ccnt < iters) {
 		uint16_t outstanding;
 		int rc = 0;
 
@@ -161,9 +161,9 @@ static int do_receiver(struct resources_t *resource)
 
 		outstanding = tot_rcnt - tot_ccnt;
 
-		if ((tot_rcnt < config.num_of_iter) && (outstanding < config.ring_depth)) {
+		if ((tot_rcnt < iters) && (outstanding < config.ring_depth)) {
 			struct ibv_recv_wr *bad_wr = NULL;
-			uint32_t left = config.num_of_iter - tot_rcnt;
+			uint32_t left = iters - tot_rcnt;
 			uint16_t batch;
 
 			batch = (config.ring_depth - outstanding) >= config.batch_size ?
@@ -188,7 +188,7 @@ out:
 	return result;
 }
 
-int test_traffic(struct resources_t *resource)
+int test_traffic(struct resources_t *resource, uint32_t iters)
 {
 	int rc;
 
@@ -200,7 +200,7 @@ int test_traffic(struct resources_t *resource)
 			return FAIL;
 		}
 
-		if (do_sender(resource))
+		if (do_sender(resource, iters))
 			return FAIL;
 	} else {
 		rc = prepare_receiver(resource);
@@ -214,7 +214,7 @@ int test_traffic(struct resources_t *resource)
 			return FAIL;
 		}
 
-		if (do_receiver(resource))
+		if (do_receiver(resource, iters))
 			return FAIL;
 	}
 

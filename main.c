@@ -5,7 +5,7 @@
 #include "infiniband/verbs.h"
 #include "types.h"
 #include "resources.h"
-#include "test_traffic.h"
+#include "test_steering.h"
 
 struct config_t config = {
 	.ib_dev = "mlx5_0",
@@ -340,10 +340,7 @@ int main(
 	rc = init_qps(&resource);
 	CHECK_RC(rc, "init_qps");
 
-	rc = init_eth_resources(&resource);
-	CHECK_RC(rc, "init_eth_resources");
-
-	rc = test_traffic(&resource);
+	rc = test_steering(&resource);
 	CHECK_RC(rc, "test_traffic");
 
 cleanup:
@@ -355,7 +352,7 @@ cleanup:
 		VL_SOCK_TRACE(("Close the Socket"));
 	}
 
-	if (destroy_eth_resources(&resource) != SUCCESS)
+	if (destroy_steering_test(&resource) != SUCCESS)
 		rc = FAIL;
 
 	if (destroy_resources(&resource) != SUCCESS)

@@ -5,7 +5,8 @@ Author:
        Guy Levi
 
 Short description:
-        Run one way Ethernet traffic using IB verbs.
+        Create steering resources on server and run one way Ethernet
+        traffic from client.
 
 Dependencies:
         Verification tools (/mswg/projects/ver_tools/reg2_latest/install.sh)
