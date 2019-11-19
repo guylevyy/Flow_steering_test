@@ -5,6 +5,7 @@
 #include <vl.h>
 #include <vl_verbs.h>
 #include "resources.h"
+#include <infiniband/mlx5dv.h>
 
 extern struct config_t config;
 
@@ -66,6 +67,7 @@ int alloc_resources(struct resources_t *resource)
 static int init_hca(struct resources_t *resource)
 {
 	struct ibv_device *ib_dev = NULL;
+	struct mlx5dv_context_attr ctx_attr;
 	struct ibv_device **dev_list;
 	int num_devices, i, rc;
 
@@ -95,9 +97,11 @@ static int init_hca(struct resources_t *resource)
 		return FAIL;
 	}
 
-	resource->hca_p->context = ibv_open_device(ib_dev);
+	memset(&ctx_attr, 0, sizeof(ctx_attr));
+	ctx_attr.flags = MLX5DV_CONTEXT_FLAGS_DEVX;
+	resource->hca_p->context = mlx5dv_open_device(ib_dev, &ctx_attr);
 	if (!resource->hca_p->context) {
-		VL_MEM_ERR(("ibv_open_device with HCA ID %s failed",
+		VL_MEM_ERR(("mlx5dv_open_device with HCA ID %s failed",
 				config.ib_dev));
 		ibv_free_device_list(dev_list);
 		return FAIL;

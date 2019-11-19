@@ -7,10 +7,12 @@ Author:
 Short description:
         Create steering resources on server and run one way Ethernet
         traffic from client.
+        The steering flows can be created by verbs API either mlx5dv_dr
+        API according to command line parameters
 
 Dependencies:
         Verification tools (/mswg/projects/ver_tools/reg2_latest/install.sh)
-        rdma-core installation
+        OFED's rdma-core installation (until upstream SW steering will support rx_nic)
     
 Supported OSes:
         Linux

@@ -11,6 +11,7 @@
 #define MAC_LEN 6
 #define STR_MAC_LEN 18
 #define ETH_HDR_SIZE 14
+#define NUM_TABLES 2
 
 #define CHECK_VALUE(verb, act_val, exp_val, cmd)			\
 	if ((act_val) != (exp_val)) {					\
@@ -89,6 +90,11 @@ struct resources_t {
 	struct ibv_sge		*sge_arr;
 	struct ibv_send_wr	*send_wr_arr;
 	struct ibv_wc		*wc_arr;
+	struct mlx5dv_dr_domain	*domain;
+	struct mlx5dv_dr_table	*table[NUM_TABLES];
+	struct mlx5dv_dr_matcher *matcher[NUM_TABLES];
+	struct mlx5dv_dr_action *action[NUM_TABLES];
+	struct mlx5dv_dr_rule *rule[NUM_TABLES];
 };
 
 #endif /* TYPES_H */
