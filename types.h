@@ -12,6 +12,7 @@
 #define STR_MAC_LEN 18
 #define ETH_HDR_SIZE 14
 #define NUM_TABLES 2
+#define NUM_MATCHERS 3
 
 #define CHECK_VALUE(verb, act_val, exp_val, cmd)			\
 	if ((act_val) != (exp_val)) {					\
@@ -30,6 +31,11 @@
 enum {
 	SUCCESS = 0,
 	FAIL = -1,
+};
+
+enum {
+	TEST_CASE_DATA_PATH = 0,
+	TEST_CASE_CONTROL_A = 1,
 };
 
 struct raw_eth_flow_attr {
@@ -51,6 +57,7 @@ struct config_t {
 	int		is_daemon;
 	int		wait;
 	int		qp_type;
+	int		test_case;
 	size_t		msg_sz;
 	uint16_t	batch_size;
 	uint16_t	ring_depth;
@@ -69,13 +76,10 @@ struct mr_data_t {
 	void		*addr;
 };
 
-struct sync_conf_info_t {
+struct sync_data_path_test_t {
 	uint32_t iter;
-	enum ibv_qp_type qp_type;
-} __attribute__ ((packed));
-
-struct sync_eth_info_t {
-	uint8_t		mac[8];
+	uint32_t reserved;
+	uint8_t mac[8];
 } __attribute__ ((packed));
 
 struct resources_t {
@@ -90,10 +94,11 @@ struct resources_t {
 	struct ibv_send_wr	*send_wr_arr;
 	struct ibv_wc		*wc_arr;
 	struct mlx5dv_dr_domain	*domain;
-	struct mlx5dv_dr_table	*table[NUM_TABLES];
-	struct mlx5dv_dr_matcher *matcher[NUM_TABLES];
-	struct mlx5dv_dr_action *action[NUM_TABLES];
-	struct mlx5dv_dr_rule *rule[NUM_TABLES];
+	struct mlx5dv_dr_table	**table_arr;
+	struct mlx5dv_dr_matcher **matcher_arr;
+	struct mlx5dv_dr_action **action_arr;
+	struct mlx5dv_dr_rule **rule_arr;
+	uint8_t remote_mac[8];
 };
 
 #endif /* TYPES_H */

@@ -64,7 +64,7 @@ int alloc_resources(struct resources_t *resource)
 	return SUCCESS;
 }
 
-static int init_hca(struct resources_t *resource)
+int init_hca(struct resources_t *resource)
 {
 	struct ibv_device *ib_dev = NULL;
 	struct mlx5dv_context_attr ctx_attr;

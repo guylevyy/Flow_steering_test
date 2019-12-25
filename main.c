@@ -18,6 +18,7 @@ struct config_t config = {
 	.msg_sz = 64,
 	.ring_depth = DEF_RING_DEPTH,
 	.batch_size = DEF_BATCH_SIZE,
+	.test_case = TEST_CASE_CONTROL_A,
 };
 
 struct VL_usage_descriptor_t usage_descriptor[] = {
@@ -69,6 +70,15 @@ struct VL_usage_descriptor_t usage_descriptor[] = {
 #define MAC_CMD_CASE				6
 		MAC_CMD_CASE
 	},
+
+	{
+		't', "test", "TEST",
+		"Test case [0-1] (Default: 1):"
+		"\n\t\t\t\t0: data-path"
+		"\n\t\t\t\t1: control path A",
+#define TEST_CMD_CASE				7
+		TEST_CMD_CASE
+	},
 };
 
 const char *bool_to_str(int var)
@@ -91,6 +101,7 @@ static void print_config(void)
 	VL_MISC_TRACE(("Number of iterations           : %d", config.num_of_iter));
 	VL_MISC_TRACE(("MAC                            : %s", config.mac));
 	VL_MISC_TRACE(("Wait before exit               : %s", bool_to_str(config.wait)));
+	VL_MISC_TRACE(("Test case                      : %d", config.test_case));
 
 	VL_MISC_TRACE(("--------------------------------------------------"));
 }
@@ -133,6 +144,12 @@ static int process_arg(
 		strcpy(config.mac, equ_ptr);
 		break;
 
+	case TEST_CMD_CASE:
+		config.test_case = strtoul(equ_ptr, NULL, 0);
+		if (config.test_case > 1)
+			VL_MISC_ERR(("Unsupported test case %s\n", equ_ptr));
+		break;
+
 	default:
 		VL_MISC_ERR(("unknown parameter is the switch %s\n", equ_ptr));
 		exit(4);
@@ -160,7 +177,7 @@ static int parse_params(
 	return rc;
 }
 
-static int init_socket(struct resources_t *resource)
+int init_socket(struct resources_t *resource)
 {
 	struct VL_sock_props_t	sock_prop;
 
@@ -242,64 +259,6 @@ int recv_info(const struct resources_t *resource, void *buf, size_t size)
 	return SUCCESS;
 }
 
-static int force_configurations_dependencies()
-{
-	if (config.ring_depth < config.batch_size)
-		config.ring_depth = config.batch_size;
-
-	if (config.qp_type == IBV_QPT_RAW_PACKET &&
-	    config.msg_sz < 64) {
-		VL_MISC_ERR(("Ethernet packet requires minimum 64B of packet size\n"));
-		return FAIL;
-	}
-
-	if (config.qp_type == IBV_QPT_RAW_PACKET &&
-	    strlen(config.mac) != STR_MAC_LEN - 1) {
-		VL_MISC_ERR(("Invalid local MAC address %d\n", strlen(config.mac)));
-		return FAIL;
-	}
-
-	return 0;
-}
-
-static int sync_configurations(struct resources_t *resource)
-{
-	struct sync_conf_info_t remote_info = {0};
-	struct sync_conf_info_t local_info = {0};
-	int rc;
-
-	local_info.iter = config.num_of_iter;
-	local_info.qp_type = config.qp_type;
-
-	if (!config.is_daemon) {
-		rc = send_info(resource, &local_info, sizeof(local_info));
-		if (rc)
-			return FAIL;
-
-		rc = recv_info(resource, &remote_info, sizeof(remote_info));
-		if (rc)
-			return FAIL;
-	} else {
-		rc = recv_info(resource, &remote_info, sizeof(remote_info));
-		if (rc)
-			return FAIL;
-
-		rc = send_info(resource, &local_info, sizeof(local_info));
-		if (rc)
-			return FAIL;
-	}
-
-	if (config.num_of_iter != remote_info.iter ||
-	    local_info.qp_type != remote_info.qp_type) {
-		VL_SOCK_ERR(("Server-client configurations are not synced"));
-		return FAIL;
-	}
-
-	VL_DATA_TRACE(("Server-client configurations are synced"));
-
-	return  SUCCESS;
-}
-
 /***********************************
 * Function: main.
 ************************************/
@@ -320,44 +279,14 @@ int main(
 
 	strcpy(resource.sock.ip, config.ip);
 
-	rc = force_configurations_dependencies();
-	CHECK_RC(rc, "force_configurations_dependencies");
-
 	print_config();
 
-	rc = init_socket(&resource);
-	CHECK_RC(rc, "init_socket");
-
-	rc = sync_configurations(&resource);
-	CHECK_RC(rc, "sync_configurations");
-
-	rc = alloc_resources(&resource);
-	CHECK_RC(rc, "resource_alloc");
-
-	rc = init_resources(&resource);
-	CHECK_RC(rc, "resource_init");
-
-	rc = init_qps(&resource);
-	CHECK_RC(rc, "init_qps");
-
-	rc = test_steering(&resource);
-	CHECK_RC(rc, "test_traffic");
+	if (config.test_case == TEST_CASE_DATA_PATH)
+		rc = test_steering_data_path(&resource);
+	else if (config.test_case == TEST_CASE_CONTROL_A)
+		rc = test_steering_control_path(&resource);
 
 cleanup:
-	if (config.wait)
-		VL_keypress_wait();
-
-	if (resource.sock.sock_fd) {
-		VL_sock_close(&resource.sock);
-		VL_SOCK_TRACE(("Close the Socket"));
-	}
-
-	if (destroy_steering_test(&resource) != SUCCESS)
-		rc = FAIL;
-
-	if (destroy_resources(&resource) != SUCCESS)
-		rc = FAIL;
-
 	VL_print_test_status(rc);
 
 	return rc;
