@@ -170,10 +170,11 @@ static int create_mlx5dv_steering(struct resources_t *resource, uint8_t *dmac)
 		goto cleanup;
 	}
 
+/*
 	int mlx5dv_dr_domain_sync(
 			struct mlx5dv_dr_domain *domain,
 			uint32_t flags);
-
+*/
 	VL_MISC_TRACE1(("Finish to create steering rule"));
 
 cleanup:
