@@ -85,7 +85,6 @@ struct resources_t {
 	struct ibv_cq		*cq;
 	struct ibv_qp		*qp;
 	struct mr_data_t	*mr;
-	struct ibv_flow		*flow;
 	struct ibv_recv_wr	*recv_wr_arr;
 	struct ibv_sge		*sge_arr;
 	struct ibv_send_wr	*send_wr_arr;

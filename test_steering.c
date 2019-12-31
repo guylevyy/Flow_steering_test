@@ -184,49 +184,6 @@ cleanup:
 
 }
 
-static int create_verbs_steering(struct resources_t *resource, uint8_t *dmac)
-{
-	struct raw_eth_flow_attr flow_attr = {
-		.attr = {
-			.comp_mask      = 0,
-			.type           = IBV_FLOW_ATTR_NORMAL,
-			.size           = sizeof(flow_attr),
-			.priority       = 0,
-			.num_of_specs   = 1,
-			.port           = IB_PORT,
-			.flags          = 0,
-		},
-		.spec_eth = {
-			.type   = IBV_FLOW_SPEC_ETH,
-			.size   = sizeof(struct ibv_flow_spec_eth),
-			.val = {
-				.dst_mac = { dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]},
-				.src_mac = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-				.ether_type = 0,
-				.vlan_tag = 0,
-			},
-			.mask = {
-				.dst_mac = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-				.src_mac = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-				.ether_type = 0,
-				.vlan_tag = 0,
-			}
-		}
-	};
-
-	VL_MISC_TRACE1(("Going to create steering rule by verbs"));
-
-	resource->flow = ibv_create_flow(resource->qp , &flow_attr.attr);
-	if (!resource->flow) {
-		VL_MISC_ERR(("Fail with ibv_create_flow (%s)", strerror(errno)));
-		return FAIL;
-	}
-
-	VL_MISC_TRACE1(("Finish to create steering rule"));
-
-	return SUCCESS;
-}
-
 int test_steering(struct resources_t *resource)
 {
 	struct sync_eth_info_t remote_eth_info = {{0}};
@@ -273,25 +230,6 @@ int test_steering(struct resources_t *resource)
 	VL_MISC_TRACE(("Test traffic"));
 
 	test_traffic(resource, config.num_of_iter);
-
-	return SUCCESS;
-}
-
-static int destroy_flow(struct resources_t *resource)
-{
-	int rc;
-
-	if (!resource->flow)
-		return SUCCESS;
-
-	VL_MISC_TRACE1(("Going to ibv_destroy_flow"));
-	rc = ibv_destroy_flow(resource->flow);
-	if (rc) {
-		VL_MISC_ERR(("Fail in ibv_destroy_flow (%s)", strerror(rc)));
-		return FAIL;
-	}
-
-	VL_MEM_TRACE1(("Finish destroy flow"));
 
 	return SUCCESS;
 }
@@ -401,8 +339,7 @@ static int destroy_rule(struct resources_t *resource)
 
 int destroy_steering_test(struct resources_t *resource)
 {
-	if (destroy_flow(resource) ||
-	    destroy_rule(resource) ||
+	if (destroy_rule(resource) ||
 	    destroy_action(resource) ||
 	    destroy_matcher(resource) ||
 	    destroy_table(resource) ||
