@@ -11,8 +11,10 @@
 #define MAC_LEN 6
 #define STR_MAC_LEN 18
 #define ETH_HDR_SIZE 14
-#define NUM_TABLES 2
-#define NUM_MATCHERS 3
+
+#define MAX_NUM_RULES 1000000
+#define MAX_NUM_MATCHERS 3
+#define MAX_NUM_TABLES 3
 
 #define CHECK_VALUE(verb, act_val, exp_val, cmd)			\
 	if ((act_val) != (exp_val)) {					\
@@ -82,6 +84,26 @@ struct sync_data_path_test_t {
 	uint8_t mac[8];
 } __attribute__ ((packed));
 
+struct rule_t {
+	struct mlx5dv_dr_rule *rule;
+};
+
+struct matcher_t {
+	struct mlx5dv_dr_matcher *matcher;
+	struct rule_t rules[MAX_NUM_RULES];
+};
+
+struct table_t {
+	struct mlx5dv_dr_table  *tbl;
+	struct mlx5dv_dr_action *action;
+	struct matcher_t matchers[MAX_NUM_MATCHERS];
+};
+
+struct tree_t {
+	struct mlx5dv_dr_domain	*domain;
+	struct table_t	tables[MAX_NUM_TABLES];
+};
+
 struct resources_t {
 	struct VL_sock_t	sock;
 	struct hca_data_t	*hca_p;
@@ -93,12 +115,8 @@ struct resources_t {
 	struct ibv_sge		*sge_arr;
 	struct ibv_send_wr	*send_wr_arr;
 	struct ibv_wc		*wc_arr;
-	struct mlx5dv_dr_domain	*domain;
-	struct mlx5dv_dr_table	**table_arr;
-	struct mlx5dv_dr_matcher **matcher_arr;
-	struct mlx5dv_dr_action **action_arr;
-	struct mlx5dv_dr_rule **rule_arr;
-	uint8_t remote_mac[8];
+	uint8_t			remote_mac[8];
+	struct tree_t		*tree;
 };
 
 #endif /* TYPES_H */
