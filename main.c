@@ -66,7 +66,8 @@ struct VL_usage_descriptor_t usage_descriptor[] = {
 
 	{
 		' ', "mac", "MAC_ADDR",
-		"Local mac to use for Raw packet QP transport",
+		"For data-path cases: local mac to use for Raw packet QP transport\n"
+		"\t\t\t     For control-path cases: match criteria dmac mask and the base dmac to spread mac addresses",
 #define MAC_CMD_CASE				6
 		MAC_CMD_CASE
 	},
