@@ -12,6 +12,7 @@ Short description:
         traffic from client.
         Case 1: Create big scale of steering resources over the client
         (tables, matchers and rules).
+        Case 2: Create steering resources over the client with duplicate rules.
 
 Dependencies:
         Verification tools (/mswg/projects/ver_tools/reg2_latest/install.sh)

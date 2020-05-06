@@ -38,6 +38,7 @@ enum {
 enum {
 	TEST_CASE_DATA_PATH = 0,
 	TEST_CASE_CONTROL_A = 1,
+	TEST_CASE_CONTROL_B = 2,
 };
 
 struct raw_eth_flow_attr {

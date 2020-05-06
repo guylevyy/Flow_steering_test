@@ -214,7 +214,8 @@ static inline void fill_match_buf(struct mlx5dv_flow_match_parameters *match,
 
 static int populate_matchers(struct table_t *tbl, struct mlx5dv_flow_match_parameters *match,
 			     struct mlx5dv_dr_action *action, uint32_t mac_47_16,
-			     uint16_t mac_15_0, uint8_t num_matchers, uint32_t num_rules)
+			     uint16_t mac_15_0, uint8_t num_matchers, uint32_t num_rules,
+			     bool is_dup_rule)
 {
 	uint32_t i;
 
@@ -227,7 +228,8 @@ static int populate_matchers(struct table_t *tbl, struct mlx5dv_flow_match_param
 			uint32_t t_mac_47_16;
 			uint16_t t_mac_15_0;
 
-			t_mac = (((uint64_t)mac_47_16 << 16) | mac_15_0) + j;
+			t_mac = (((uint64_t)mac_47_16 << 16) | mac_15_0) +
+				(is_dup_rule ? 0 : j);
 			t_mac_47_16 = t_mac >> 16;
 			t_mac_15_0 = t_mac; /* C will modulo it with 2^16 */
 			fill_match_buf(match, t_mac_47_16, t_mac_15_0);
@@ -246,7 +248,8 @@ static int populate_matchers(struct table_t *tbl, struct mlx5dv_flow_match_param
 }
 
 static int create_basic_tree(struct resources_t *resource, uint8_t tree_rank,
-			     uint8_t *mac, uint8_t num_matchers, uint32_t num_rules)
+			     uint8_t *mac, uint8_t num_matchers, uint32_t num_rules,
+			     bool is_dup_rule)
 {
 	struct mlx5dv_flow_match_parameters *mask_0 = NULL;
 	struct mlx5dv_flow_match_parameters *mask_1 = NULL;
@@ -351,7 +354,7 @@ static int create_basic_tree(struct resources_t *resource, uint8_t tree_rank,
 		} else {
 			match = match_1;
 			rc = populate_matchers(&resource->tree->tables[i], match,
-					       action, dmac_47_16, dmac_15_0, num_matchers, num_rules);
+					       action, dmac_47_16, dmac_15_0, num_matchers, num_rules, is_dup_rule);
 		}
 		if (rc)
 			goto cleanup;
@@ -447,7 +450,7 @@ static int _test_steering_data_path(struct resources_t *resource)
 			return FAIL;
 		}
 
-		rc = create_basic_tree(resource, 2, local_mac, 1, 1);
+		rc = create_basic_tree(resource, 2, local_mac, 1, 1, 0);
 	} else {
 		VL_MISC_TRACE(("Creating headers"));
 		rc = create_headers(resource, local_mac, resource->remote_mac);
@@ -510,7 +513,8 @@ cleanup:
 	return rc;
 }
 
-static int _test_steering_control_path(struct resources_t *resource)
+static int _test_steering_control_path(struct resources_t *resource,
+				       uint8_t num_matchers, bool is_dup_rule)
 {
 	uint8_t mac[8] = {0};
 	int rc = SUCCESS;
@@ -519,7 +523,8 @@ static int _test_steering_control_path(struct resources_t *resource)
 
 	mac_string_to_byte(config.mac, mac);
 
-	rc = create_basic_tree(resource, MAX_NUM_TABLES, mac, MAX_NUM_MATCHERS, config.num_of_iter);
+	rc = create_basic_tree(resource, is_dup_rule ? 2 : MAX_NUM_TABLES, mac, num_matchers,
+			       config.num_of_iter, is_dup_rule);
 	if (rc)
 		return FAIL;
 
@@ -534,7 +539,9 @@ static int force_control_path_test_configurations()
 	return 0;
 }
 
-int test_steering_control_path(struct resources_t *resource)
+int test_steering_control_path(struct resources_t *resource,
+			       uint8_t num_matchers,
+			       bool is_dup_rule)
 {
 	int rc;
 
@@ -550,7 +557,7 @@ int test_steering_control_path(struct resources_t *resource)
 	rc = init_steering_resources(resource);
 	CHECK_RC(rc, "init_steering_resources");
 
-	rc = _test_steering_control_path(resource);
+	rc = _test_steering_control_path(resource, num_matchers, is_dup_rule);
 	CHECK_RC(rc, "_test_steering_control_path");
 
 cleanup:

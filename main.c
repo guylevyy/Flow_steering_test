@@ -74,9 +74,10 @@ struct VL_usage_descriptor_t usage_descriptor[] = {
 
 	{
 		't', "test", "TEST",
-		"Test case [0-1] (Default: 1):"
+		"Test case [0-2] (Default: 1):"
 		"\n\t\t\t\t0: data-path"
-		"\n\t\t\t\t1: control path A",
+		"\n\t\t\t\t1: control path A - incremental match values"
+		"\n\t\t\t\t2: control path B - duplicate match values",
 #define TEST_CMD_CASE				7
 		TEST_CMD_CASE
 	},
@@ -147,7 +148,7 @@ static int process_arg(
 
 	case TEST_CMD_CASE:
 		config.test_case = strtoul(equ_ptr, NULL, 0);
-		if (config.test_case > 1)
+		if (config.test_case > 2)
 			VL_MISC_ERR(("Unsupported test case %s\n", equ_ptr));
 		break;
 
@@ -285,7 +286,9 @@ int main(
 	if (config.test_case == TEST_CASE_DATA_PATH)
 		rc = test_steering_data_path(&resource);
 	else if (config.test_case == TEST_CASE_CONTROL_A)
-		rc = test_steering_control_path(&resource);
+		rc = test_steering_control_path(&resource, MAX_NUM_MATCHERS, 0);
+	else if (config.test_case == TEST_CASE_CONTROL_B)
+		rc = test_steering_control_path(&resource, 1, 1);
 
 cleanup:
 	VL_print_test_status(rc);
