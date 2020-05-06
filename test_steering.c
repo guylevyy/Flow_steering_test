@@ -447,7 +447,7 @@ static int _test_steering_data_path(struct resources_t *resource)
 			return FAIL;
 		}
 
-		rc = create_basic_tree(resource, 2, local_mac, MAX_NUM_MATCHERS, 1);
+		rc = create_basic_tree(resource, 2, local_mac, 1, 1);
 	} else {
 		VL_MISC_TRACE(("Creating headers"));
 		rc = create_headers(resource, local_mac, resource->remote_mac);
