@@ -168,10 +168,10 @@ static int destroy_steering_resources(struct resources_t *resource)
 
 static int build_matchers(struct table_t *tbl,
 			  enum dr_matcher_criteria criteria,
-			  void *match) {
+			  void *match, uint8_t num_matchers) {
 	int i;
 
-	for (i = 0; i < MAX_NUM_MATCHERS; i++) {
+	for (i = 0; i < num_matchers; i++) {
 		VL_MISC_TRACE1(("Going to create matcher priority %d", i));
 
 		tbl->matchers[i].matcher =
@@ -186,11 +186,12 @@ static int build_matchers(struct table_t *tbl,
 }
 
 static int populate_matchers_empty_criteria(struct table_t *tbl, void *match,
-					    struct mlx5dv_dr_action *action)
+					    struct mlx5dv_dr_action *action,
+					    uint8_t num_matchers)
 {
 	int i;
 
-	for (i = 0; i < MAX_NUM_MATCHERS; i++) {
+	for (i = 0; i < num_matchers; i++) {
 		struct rule_t *rule = &tbl->matchers[i].rules[0];
 
 		VL_MISC_TRACE1(("Going to create matcher[%d].rule[%d]", i, 0));
@@ -213,11 +214,11 @@ static inline void fill_match_buf(struct mlx5dv_flow_match_parameters *match,
 
 static int populate_matchers(struct table_t *tbl, struct mlx5dv_flow_match_parameters *match,
 			     struct mlx5dv_dr_action *action, uint32_t mac_47_16,
-			     uint16_t mac_15_0, uint32_t num_rules)
+			     uint16_t mac_15_0, uint8_t num_matchers, uint32_t num_rules)
 {
 	uint32_t i;
 
-	for (i = 0; i < MAX_NUM_MATCHERS; i++) {
+	for (i = 0; i < num_matchers; i++) {
 		uint32_t j;
 
 		for (j = 0; j < num_rules; j++) {
@@ -245,7 +246,7 @@ static int populate_matchers(struct table_t *tbl, struct mlx5dv_flow_match_param
 }
 
 static int create_basic_tree(struct resources_t *resource, uint8_t tree_rank,
-			     uint8_t *mac, uint32_t num_rules)
+			     uint8_t *mac, uint8_t num_matchers, uint32_t num_rules)
 {
 	struct mlx5dv_flow_match_parameters *mask_0 = NULL;
 	struct mlx5dv_flow_match_parameters *mask_1 = NULL;
@@ -319,7 +320,7 @@ static int create_basic_tree(struct resources_t *resource, uint8_t tree_rank,
 			mask = mask_1;
 		}
 
-		rc = build_matchers(&resource->tree->tables[i], criteria, mask);
+		rc = build_matchers(&resource->tree->tables[i], criteria, mask, num_matchers);
 		if (rc)
 			goto cleanup;
 
@@ -346,11 +347,11 @@ static int create_basic_tree(struct resources_t *resource, uint8_t tree_rank,
 		VL_MISC_TRACE1(("Going to insert rules into matchers table level %d:", i));
 		if (criteria == DR_MATCHER_CRITERIA_EMPTY) {
 			match = mask_0;
-			rc = populate_matchers_empty_criteria(&resource->tree->tables[i], match, action);
+			rc = populate_matchers_empty_criteria(&resource->tree->tables[i], match, action, num_matchers);
 		} else {
 			match = match_1;
 			rc = populate_matchers(&resource->tree->tables[i], match,
-					       action, dmac_47_16, dmac_15_0, num_rules);
+					       action, dmac_47_16, dmac_15_0, num_matchers, num_rules);
 		}
 		if (rc)
 			goto cleanup;
@@ -446,7 +447,7 @@ static int _test_steering_data_path(struct resources_t *resource)
 			return FAIL;
 		}
 
-		rc = create_basic_tree(resource, 2, local_mac, 1);
+		rc = create_basic_tree(resource, 2, local_mac, MAX_NUM_MATCHERS, 1);
 	} else {
 		VL_MISC_TRACE(("Creating headers"));
 		rc = create_headers(resource, local_mac, resource->remote_mac);
@@ -518,7 +519,7 @@ static int _test_steering_control_path(struct resources_t *resource)
 
 	mac_string_to_byte(config.mac, mac);
 
-	rc = create_basic_tree(resource, MAX_NUM_TABLES, mac, config.num_of_iter);
+	rc = create_basic_tree(resource, MAX_NUM_TABLES, mac, MAX_NUM_MATCHERS, config.num_of_iter);
 	if (rc)
 		return FAIL;
 
