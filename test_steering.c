@@ -379,7 +379,7 @@ static int force_data_path_test_configurations()
 
 	if (config.qp_type == IBV_QPT_RAW_PACKET &&
 	    strlen(config.mac) != STR_MAC_LEN - 1) {
-		VL_MISC_ERR(("Invalid local MAC address %d\n", strlen(config.mac)));
+		VL_MISC_ERR(("Invalid local MAC address length %zu\n", strlen(config.mac)));
 		return FAIL;
 	}
 
